@@ -8,23 +8,36 @@ import {Developed} from "./Developed.sol";
 
 event Open(address to, uint256 amount1, uint256 amount2, uint256 amountInr);
 event Close(uint256 tokenId, address to, uint256 amount1, uint256 amount2, uint256 total,  uint256 amountInr);
+event DevFee(uint256 fee);
 
 contract InrInvestor is Investor {
+
  
     bytes32 public constant TRADER_ROLE = keccak256("TRADER_ROLE");
     bytes32 public constant DEV_ROLE = keccak256("DEV_ROLE");
-    uint256 public constant DEV_FEE = 10 ** 7;
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    uint256 public dev_fee ;
     mapping(uint256 _tokenId => uint256 _inr) investedInr;
 
     constructor (address defaultAdmin, address _tokenA, address _tokenB, address _V2router) Investor( defaultAdmin,  _tokenA,  _tokenB,  _V2router) {
         _grantRole(TRADER_ROLE, defaultAdmin);
+        dev_fee = 10 ** 7;
     }
 
-    function openTrade(address to, uint256 amountA, uint256 amountBOutMin, uint deadline, uint256 _amountInr) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
-        require(_msgValue() >= DEV_FEE * amountA, "dev fee"); // add developer fee
+    function updateDevFee( uint256 _fee) public onlyRole(DEFAULT_ADMIN_ROLE){
+        dev_fee = _fee;
+        emit DevFee(_fee);
+    }
+
+    function updateProfitRate(uint256 tokenId, uint256 _max_profit, uint256 _profit_per_day) public onlyRole(MANAGER_ROLE) {
+        _update_profit_rate(tokenId, _max_profit, _profit_per_day); 
+    }
+
+    function openTrade(address to, uint256 amountA, uint256 amountBOutMin, uint deadline, uint256 _amountInr, uint256 _max_profit, uint256 _profit_per_day) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
+        require(_msgValue() >= dev_fee * amountA, "dev fee"); // add developer fee
         uint256 tokenId = _mint(to);
         amounts = _openTrade(tokenId, amountA, amountBOutMin, deadline);
-        _initalInvestment(tokenId, amounts[0], amounts[1]);
+        _initalInvestment(tokenId, amounts[0], amounts[1], _max_profit, _profit_per_day);
         emit Open(to, amounts[0], amounts[1], _amountInr);
         return amounts;
     }
@@ -37,7 +50,7 @@ contract InrInvestor is Investor {
         _isAuthorized(to, _msgSender(), tokenId);
         // uint256 tokenId, address to, uint256 amountOutMin, uint deadline
         (uint256 amountA,uint256 amountB, uint256 total)  = _closeTrade(tokenId, to, amountOutMin, deadline);
-        require(_msgValue() >= DEV_FEE * amountA, "dev fee"); // add developer fee
+        require(_msgValue() >= dev_fee * amountA, "dev fee"); // add developer fee
          _update(address(0), tokenId, _msgSender()); // It checks authentication
         emit Close(tokenId, to,  amountA, amountB, total, inr);
         return total;
@@ -52,7 +65,4 @@ contract InrInvestor is Investor {
     function _msgValue() internal view virtual returns (uint256) {
         return msg.value ;
     }
-
-
-
 } 

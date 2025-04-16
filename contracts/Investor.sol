@@ -16,6 +16,8 @@ struct Investment {
     uint48 start;
     uint256 investmentA; // Initial inventment amount
     uint256 amountB; // Balance of token B
+    uint256 max_profit; // 1%=100, when SCALE=1000
+    uint256 profit_per_day; // 0.05% = 5, when SCALE=1000
 }
 
 
@@ -24,6 +26,7 @@ struct Investment {
 contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
 
     event Invest(uint256 tokenId,uint256 amount, address manager, address reciever);
+    event ProfitRate(uint256 tokenId, uint256 max_profit, uint256 profit_per_day);
 
     using SafeERC20 for IERC20;
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -63,11 +66,21 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
         return tokenId;
     }
 
-    function _initalInvestment(uint256 tokenId, uint256 amountA, uint256 amountB) internal {
+    function _update_profit_rate(uint256 tokenId, uint256 _max_profit, uint256 _profit_per_day) internal {
+        require(_ownerOf(tokenId) != address(0), "Investor: Token not exists");
+        Investment storage investment = investments[tokenId];
+        investment.max_profit = _max_profit;
+        investment.profit_per_day = _profit_per_day;
+        emit ProfitRate(tokenId, _max_profit, _profit_per_day);
+    }
+
+    function _initalInvestment(uint256 tokenId, uint256 amountA, uint256 amountB, uint256 _max_profit, uint256 _profit_per_day) internal {
         investments[tokenId] = Investment({
             investmentA: amountA,
             amountB: amountB,
-            start: clock()
+            start: clock(),
+            max_profit: _max_profit,
+            profit_per_day: _profit_per_day
         });
         totalInvestmentA += amountA;
     }
@@ -118,18 +131,17 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
     }
 
     function _profit(uint256 amount, uint256 investedAmount, uint48 start) internal view returns(uint256 total) {
-        // Investment storage investment = investments[nftId];
-        if (amount <= investedAmount) {
-            return(investedAmount);
+        total = investedAmount;
+        if (amount > investedAmount) {
+            uint48 d = _days(start);
+            uint256 profit = amount - investedAmount;
+            // 80%/0.05% = 1600
+            if (d <= 1600) {
+                total += profit * d * PROFIT_PER_DAY/SCALE;
+            }
+            total += profit * PROFIT_MAX/SCALE;
         }
-        uint48 d = _days(start);
-        uint256 profit = amount - investedAmount;
-        // 80%/0.05% = 1600
-        if (d <= 1600) {
-            return(profit * d * PROFIT_PER_DAY/SCALE);
-        }
-        return(profit * PROFIT_MAX/SCALE);
-
+        return total;
     }
 
     // return full days from some start point
