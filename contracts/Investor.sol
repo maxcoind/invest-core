@@ -8,6 +8,7 @@ import {ERC721Pausable} from "@openzeppelin/contracts/token/ERC721/extensions/ER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import {IUniswapV2Factory} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
 import "hardhat/console.sol";
 
@@ -27,12 +28,13 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
 
     event Invest(uint256 tokenId,uint256 amount, address manager, address reciever);
     event ProfitRate(uint256 tokenId, uint256 max_profit, uint256 profit_per_day);
+    event Profit(uint256 max, uint256 per_day);
 
     using SafeERC20 for IERC20;
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint256 constant SCALE = 10000;
-    uint256 constant PROFIT_MAX = 8000;
-    uint256 constant PROFIT_PER_DAY = 5;
+    uint256  default_profit_max;
+    uint256  default_profit_per_day;
 
     uint256 private _nextTokenId;
     address public tokenA;
@@ -59,6 +61,12 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
     }
 
     // Internal functions
+    function _updateProfit(uint256 _max, uint256 _per_day) internal {
+        default_profit_max = _max;
+        default_profit_per_day = _per_day;
+        emit Profit(_max, _per_day);
+    }
+
 
     function _mint(address to) internal returns (uint256) {
         uint256 tokenId = _nextTokenId++;
@@ -96,19 +104,19 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
             amount,
             amountOutMin,
             path,
-            to,
+            address(this),
             deadline
         );
 
-        uint256 total = _profit(amounts[1], investment.investmentA, investment.start);
+        uint256 total = _profit(amounts[1], investment);
         console.log("Close trade, total, investmentA:", total , investment.investmentA );
         if (investment.investmentA>total) {
-            console.log("Close trade, deficite:", total ,  investment.investmentA-total);
-            IERC20(tokenA).safeTransfer(to, investment.investmentA-total);
+            console.log("Close trade, deficite:", total ,  investment.investmentA);
             total = investment.investmentA;
         } else {
              totalProfitA += amounts[1] - total;
         }
+        IERC20(tokenA).safeTransfer(to, total);
         investment.amountB -= amounts[0];
         return (amounts[1], amounts[0], total);
     }
@@ -130,23 +138,23 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
         return amounts;
     }
 
-    function _profit(uint256 amount, uint256 investedAmount, uint48 start) internal view returns(uint256 total) {
-        total = investedAmount;
-        if (amount > investedAmount) {
-            uint48 d = _days(start);
-            uint256 profit = amount - investedAmount;
-            // 80%/0.05% = 1600
-            if (d <= 1600) {
-                total += profit * d * PROFIT_PER_DAY/SCALE;
+    function _profit(uint256 amount, Investment storage investment) internal view returns(uint256 total) {
+        total = investment.investmentA;
+        if (amount > total) {
+            uint48 time_range = _daysFrom(investment.start);
+            uint256 profit = amount - investment.investmentA;
+            if (time_range <= investment.max_profit/investment.profit_per_day ) {
+                total += profit * time_range * investment.profit_per_day/SCALE;
+            } else {
+                total += profit * investment.max_profit/SCALE;
             }
-            total += profit * PROFIT_MAX/SCALE;
         }
         return total;
     }
 
     // return full days from some start point
     // start - start time in seconds
-    function _days(uint48 start) internal view returns(uint48) {
+    function _daysFrom(uint48 start) internal view returns(uint48) {
         require(clock() >= start, "invalid time range");
         return( (clock() - start) / 1 days);
     }
