@@ -110,12 +110,13 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
 
         uint256 total = _profit(amounts[1], investment);
         console.log("Close trade, total, investmentA:", total , investment.investmentA );
-        if (investment.investmentA>total) {
+        if (investment.investmentA >= total) {
             console.log("Close trade, deficite:", total ,  investment.investmentA);
             total = investment.investmentA;
         } else {
              totalProfitA += amounts[1] - total;
         }
+        console.log("to, total",to, total);
         IERC20(tokenA).safeTransfer(to, total);
         investment.amountB -= amounts[0];
         return (amounts[1], amounts[0], total);
@@ -125,6 +126,7 @@ contract Investor is ERC721, ERC721Enumerable, ERC721Pausable, AccessControl{
 
     function _openTrade(uint256 tokenId, uint256 amount, uint256 amountOutMin, uint deadline) internal returns(uint[] memory amounts) {
                 address[] memory path = new address[](2);
+        IERC20(tokenA).safeTransferFrom(_msgSender(),address(this),amount);
         path[0] = tokenA;
         path[1] = tokenB;
         amounts = IUniswapV2Router02(uniswapV2Router02).swapExactTokensForTokens(
