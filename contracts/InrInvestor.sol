@@ -37,7 +37,7 @@ contract InrInvestor is AbstractInvestor {
 
     uint256 public dev_fee ;
     uint256 public dev_balance;
-    uint256 public inr_rate;
+    uint256 public inr_rate; // rate = SCALE * INR / TokenA
     mapping(uint256 _tokenId => uint256 _inr) investedInr;
     mapping(bytes32 => bool) exists;
     mapping(bytes32 => uint256) hash2tokenId;
@@ -55,7 +55,7 @@ contract InrInvestor is AbstractInvestor {
         _grantRole(MANAGER_ROLE, _msgSender());
         _grantRole(ACCOUNTER_ROLE, _msgSender());
         dev_fee = 1;
-        inr_rate = 1;
+        inr_rate = 20000; // 1 to 1
         _updateDefaultProfitRate(8000, 5);
     }
 
@@ -84,14 +84,15 @@ contract InrInvestor is AbstractInvestor {
     }
 
 
-    function openTrade(address to, uint256 amountBOutMin, uint deadline, uint256 inr, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
+    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
         require(!exists[_hash], "hash exists");
         uint256 amountA = SCALE * inr / inr_rate;
         exists[_hash] = true;
-        dev_balance +=  dev_fee * amountA/SCALE;
+        dev_balance +=  dev_fee * amountA / SCALE;
         uint256 tokenId = _mint(to);
         hash2tokenId[_hash] = tokenId;
         investedInr[tokenId] = inr;
+        console.log("Open trade, Amount A:", amountA);
         amounts = _openTrade(tokenId, amountA, amountBOutMin, deadline);
         totalInvestmentA += amounts[0];
         _initalInvestment(tokenId, amounts[0], amounts[1], default_profit_max, default_profit_per_day);

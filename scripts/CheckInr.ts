@@ -64,12 +64,8 @@ async function deployWETH9(): Promise<IERC20> {
         console.log(`JINR - WJXN Pair deployed to ${V2pairAddress}`);
         const V2pair = new Contract(V2pairAddress, IUniswapV2Pair.abi, owner);
 
-        
-        
-
         console.log(`Total liquidity: ${await V2pair.totalSupply()}`);
-      
-    
+          
         await( await tokenA.approve(await uniswapV2.v2_router.getAddress(), MaxUint256)).wait();
         await( await tokenB.approve(await uniswapV2.v2_router.getAddress(), MaxUint256)).wait();
       
@@ -123,7 +119,9 @@ console.log("Token A balance in InrInvest:", ethers.formatEther(await tokenA.bal
 
 const invest_amount = 10n**18n;
 // await invest.openTrade(user.address, ethers.formatEther("1"), 0, deadline, 0);
-await invest.openTrade(user.address, invest_amount, 0, deadline, 0, "0x7465737400000000000000000000000000000000000000000000000000000000");
+// function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
+    console.log("Open trade");
+await invest.openTrade(user.address, invest_amount, 0, deadline, "0x7465737400000000000000000000000000000000000000000000000000000000");
 
 console.log("Trade opened");
 console.log("Token A balance of user:", ethers.formatEther(await tokenA.balanceOf(user.address)));
@@ -132,7 +130,6 @@ console.log("Token A balance in InrInvest:", ethers.formatEther(await tokenA.bal
 console.log("Token B balance in InrInvest:", ethers.formatEther(await tokenB.balanceOf(investAddress)));
 
 
-invest.connect(user).approve(owner.address,0n);
 
 // Pass one year
 ethers.provider.send("evm_increaseTime", [365 * 24 * 60 * 60]);
@@ -141,7 +138,9 @@ console.log("Passed 1 year");
 
 // log fee
 // console.log("Fee:", await invest.fee(0));
-await invest.closeTrade(0n, 0, Math.floor(Date.now() / 1000) + 10 * 60 + 365 * 24 * 60 * 60, 1000); // plus 1 year from today
+// function closeTrade(uint256 tokenId, address to, uint256 amountOutMin, uint deadline)
+await invest.grantRole(await invest.EXCHANGER_ROLE(), owner.address);
+await invest.closeTrade(0n, owner.address, 0, Math.floor(Date.now() / 1000) + 10 * 60 + 365 * 24 * 60 * 60); // plus 1 year from today
 console.log("Trade closed");
 
 
