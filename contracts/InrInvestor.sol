@@ -20,6 +20,7 @@ event Close(uint256 tokenId, address to, uint256 amountA, uint256 amountB, uint2
 event DevFee(uint256 fee);
 event Profit(uint256 max, uint256 per_day);
 event WithdrawProfit(address to, uint256 amount);
+event Accountant(address accountant);
 // ToDo: Profit in INR
 // ToDo: [x] INR exchange rate
 // ToDo: [x] Add Exchanger group
@@ -37,6 +38,8 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     bytes32 public constant ACCOUNTER_ROLE = keccak256("ACCOUNTER_ROLE");
     bytes32 public constant EXCHANGER_ROLE = keccak256("EXCHANGER_ROLE");
 
+    address public accountant;
+
     uint256 public dev_fee ;
     uint256 public dev_balance;
     uint256 public inr_rate; // rate = SCALE * INR / TokenA
@@ -50,14 +53,22 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     uint256 totalProfitA; // How much it was made in total
     uint256 totalDeficiteA;
 
-    constructor (address _tokenA, address _tokenB, address _V2router) AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {
+    constructor (address _tokenA, address _tokenB, address _V2router, address _accountant) AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {
         _grantRole(TRADER_ROLE, _msgSender());
         _grantRole(MANAGER_ROLE, _msgSender());
         _grantRole(ACCOUNTER_ROLE, _msgSender());
         dev_fee = 1;
         inr_rate = 20000; // 1 to 1
+        accountant = _accountant;
         _updateDefaultProfitRate(8000, 5);
     }
+
+    function setAccountant(address _accountant) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(accountant != address(0), "Invalid accountant address");
+        accountant = _accountant;
+        emit Accountant(accountant);
+    }
+
 
     function setInrRate(uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
         require(rate > 0 && rate < 1e18, "Invalid INR rate");
@@ -78,7 +89,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         _update_profit_rate(tokenId, _max_profit, _profit_per_day); 
     }
 
-    function withdrawProfit(address to, uint256 amount) public onlyRole(ACCOUNTER_ROLE) {
+    function withdrawTokenA(address to, uint256 amount) public onlyRole(ACCOUNTER_ROLE) {
         uint256 balance = IERC20(tokenA).balanceOf(address(this));
         require(amount <= (balance - dev_balance), "Not enough money"); 
         IERC20(tokenA).safeTransfer(to, amount);
@@ -111,7 +122,9 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         uint256 total = _profit(amountA, tokenId);
 
         if (amountA > total) {
-            totalProfitA += amountA - total;
+            uint256 profit = amountA - total;
+            totalProfitA += profit;
+            IERC20(tokenA).safeTransfer(accountant, profit);
         } else { 
             if (amountA <  total) {
                 totalDeficiteA += total - amountA;
