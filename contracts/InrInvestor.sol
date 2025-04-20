@@ -8,6 +8,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 
 import "hardhat/console.sol";
@@ -24,9 +26,9 @@ event WithdrawProfit(address to, uint256 amount);
 // ToDo: [x] Allow withdraw only to exchanger
 // ToDo: [x] Add manager to autoapproval of account
 
+event InrRateUpdated(uint256 newRate);
 
-
-contract InrInvestor is AbstractInvestor {
+contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     using SafeERC20 for IERC20;
  
     bytes32 public constant TRADER_ROLE = keccak256("TRADER_ROLE");
@@ -48,8 +50,6 @@ contract InrInvestor is AbstractInvestor {
     uint256 totalProfitA; // How much it was made in total
     uint256 totalDeficiteA;
 
-
-
     constructor (address _tokenA, address _tokenB, address _V2router) AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {
         _grantRole(TRADER_ROLE, _msgSender());
         _grantRole(MANAGER_ROLE, _msgSender());
@@ -60,7 +60,9 @@ contract InrInvestor is AbstractInvestor {
     }
 
     function setInrRate(uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
+        require(rate > 0 && rate < 1e18, "Invalid INR rate");
         inr_rate = rate;
+        emit InrRateUpdated(rate);
     }
 
     function updateProfit(uint256 max, uint256 per_day) public onlyRole(MANAGER_ROLE) {
@@ -83,12 +85,13 @@ contract InrInvestor is AbstractInvestor {
         emit WithdrawProfit(to, amount);
     }
 
+    
 
-    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
+    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) nonReentrant external payable returns(uint[] memory amounts) {
         require(!exists[_hash], "hash exists");
         uint256 amountA = SCALE * inr / inr_rate;
         exists[_hash] = true;
-        dev_balance +=  dev_fee * amountA / SCALE;
+        dev_balance +=  (dev_fee * amountA) / SCALE;
         uint256 tokenId = _mint(to);
         hash2tokenId[_hash] = tokenId;
         investedInr[tokenId] = inr;
@@ -100,12 +103,11 @@ contract InrInvestor is AbstractInvestor {
         return amounts;
     }
 
-
-    function closeTrade(uint256 tokenId, address to, uint256 amountOutMin, uint deadline) onlyRole(TRADER_ROLE) external returns(uint256) {
+    function closeTrade(uint256 tokenId, address to, uint256 amountOutMin, uint deadline) onlyRole(TRADER_ROLE) nonReentrant external returns(uint256) {
         require(hasRole(EXCHANGER_ROLE, to), "Reciever is not exchanger");
         console.log("Before close trade");
         (uint256 amountA, uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
-        dev_balance +=  dev_fee * amountA/SCALE;
+        dev_balance +=  (dev_fee * amountA) / SCALE;
         uint256 total = _profit(amountA, tokenId);
 
         if (amountA > total) {
@@ -121,6 +123,24 @@ contract InrInvestor is AbstractInvestor {
          emit Close(tokenId, to,  amountA, amountB, total, inr_rate);
         return total;
     }
+
+
+    // returns AmountA, AmountB, totalA
+    function viewPendingProfit(uint256 tokenId) public view returns(uint[] memory amounts) {
+        assert(_ownerOf(tokenId) != address(0));
+        address[] memory path = new address[](2);
+        path[0] = tokenB;
+        path[1] = tokenA;
+        Investment storage inv = investments[tokenId];
+        uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
+        uint256 total = _profit(swapAmounts[0], tokenId);
+        amounts = new uint256[](3);
+        amounts[0] = swapAmounts[0];
+        amounts[1] = swapAmounts[1];
+        amounts[2]=total;
+        return amounts;
+    }
+
     
     function withdrawDevFee(address to) public onlyRole(DEV_ROLE) {
         IERC20(tokenA).safeTransfer(to, dev_balance);
@@ -152,6 +172,7 @@ contract InrInvestor is AbstractInvestor {
 
     // Add some extra protections
     function withdrawStuckETH(address payable _addressTo, uint256 _amount) onlyRole(DEFAULT_ADMIN_ROLE) public returns(uint256){
+        require(_amount <= address(this).balance, "Insufficient ETH balance");
         _addressTo.transfer(_amount);
         return address(this).balance;
     }

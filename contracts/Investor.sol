@@ -4,6 +4,7 @@ pragma solidity ^0.8.22;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {AbstractInvestor, Investment} from "./AbstractInvestor.sol";
 
@@ -12,19 +13,24 @@ event Close(uint256 tokenId, address to, uint256 amount1, uint256 amount2, uint2
 
 
 
-contract Investor is AbstractInvestor {
+contract Investor is AbstractInvestor, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 totalInvestmentA; //How much it was invested total
     uint256 totalPaidA; // How much it was paid in total
     uint256 totalProfitA; // How much it was made in total
-    uint256 totalDeficiteA;
+    uint256 totalDeficitA;
 
 
     constructor (address _tokenA, address _tokenB, address _V2router, address _factory) 
         AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {}
 
-    function openTrade(uint256 amount, uint256 amountBOutMin, uint deadline)  external returns(uint[] memory amounts) {
+    /// @notice Opens a new trade by minting an NFT and swapping tokenA for tokenB.
+    /// @param amount Amount of tokenA to invest.
+    /// @param amountBOutMin Minimum tokenB expected from the swap.
+    /// @param deadline Uniswap swap deadline.
+    /// @return amounts Array containing [amountA, amountB].
+    function openTrade(uint256 amount, uint256 amountBOutMin, uint deadline) nonReentrant  external returns(uint[] memory amounts) {
         address to = _msgSender();
         uint256 tokenId = _mint(to);
         amounts = _openTrade(tokenId, amount, amountBOutMin, deadline);
@@ -34,7 +40,7 @@ contract Investor is AbstractInvestor {
         return amounts;
     }
 
-    function closeTrade(uint256 tokenId, uint256 amountOutMin, uint deadline)  external returns(uint256) {
+    function closeTrade(uint256 tokenId, uint256 amountOutMin, uint deadline) nonReentrant  external returns(uint256) {
         address to = _ownerOf(tokenId);
         require(to != address(0), "Investor: Token not exists");
         (uint256 amountA,uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
@@ -45,7 +51,7 @@ contract Investor is AbstractInvestor {
             totalProfitA += amountA - total;
         } else { 
             if (amountA <  total) {
-                totalDeficiteA += total - amountA;
+                totalDeficitA += total - amountA;
             }
         }
         totalPaidA += total;
@@ -55,15 +61,18 @@ contract Investor is AbstractInvestor {
         return total;
     }
 
-    // returns AmountB, AmountA, totalA
+    // returns AmountA, AmountB, totalA
     function viewPendingProfit(uint256 tokenId) public view returns(uint[] memory amounts) {
         assert(_ownerOf(tokenId) != address(0));
         address[] memory path = new address[](2);
         path[0] = tokenB;
         path[1] = tokenA;
         Investment storage inv = investments[tokenId];
-        IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
-        uint256 total = _profit(amounts[1], tokenId);
+        uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
+        uint256 total = _profit(swapAmounts[0], tokenId);
+        amounts = new uint256[](3);
+        amounts[0] = swapAmounts[0];
+        amounts[1] = swapAmounts[1];
         amounts[2]=total;
         return amounts;
     }
@@ -71,6 +80,7 @@ contract Investor is AbstractInvestor {
 
     // Add some extra protections
     function withdrawStuckETH(address payable _addressTo, uint256 _amount) onlyRole(DEFAULT_ADMIN_ROLE) public returns(uint256){
+        require(_amount <= address(this).balance, "Insufficient ETH balance");
         _addressTo.transfer(_amount);
         return address(this).balance;
     }

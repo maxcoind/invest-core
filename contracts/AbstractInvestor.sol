@@ -37,9 +37,9 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
     uint256  default_profit_per_day;
 
     uint256 private _nextTokenId;
-    address public tokenA;
-    address public tokenB;
-    address public uniswapV2Router02;
+    address public immutable tokenA;
+    address public immutable tokenB;
+    address public immutable uniswapV2Router02;
 
     mapping (uint256 => Investment) public investments;
 
