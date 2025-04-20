@@ -133,10 +133,10 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         path[1] = tokenA;
         Investment storage inv = investments[tokenId];
         uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
-        uint256 total = _profit(swapAmounts[0], tokenId);
+        uint256 total = _profit(swapAmounts[1], tokenId);
         amounts = new uint256[](3);
-        amounts[0] = swapAmounts[0];
-        amounts[1] = swapAmounts[1];
+        amounts[0] = swapAmounts[1];
+        amounts[1] = swapAmounts[0];
         amounts[2]=total;
         return amounts;
     }
