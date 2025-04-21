@@ -72,13 +72,13 @@ contract Investor is AbstractInvestor, ReentrancyGuard {
         uint256 total = _profit(swapAmounts[1], tokenId);
         amounts = new uint256[](3);
         amounts[0] = swapAmounts[1];
-        amounts[1] = swapAmounts[2];
+        amounts[1] = swapAmounts[0];
         amounts[2]=total;
         return amounts;
     }
 
     // internal
-    
+
     function _profit(uint256 amount, uint256 tokenId) internal view virtual returns(uint256 total) {
         Investment storage investment = investments[tokenId];
         total = investment.investmentA;

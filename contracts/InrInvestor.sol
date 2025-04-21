@@ -100,7 +100,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
     function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) nonReentrant external payable returns(uint[] memory amounts) {
         require(!exists[_hash], "hash exists");
-        uint256 amountA = SCALE * inr / inr_rate;
+        uint256 amountA = inr2usd(inr);
         exists[_hash] = true;
         dev_balance +=  (dev_fee * amountA) / SCALE;
         uint256 tokenId = _mint(to);
@@ -152,9 +152,17 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         amounts = new uint256[](4);
         amounts[0] = swapAmounts[1];
         amounts[1] = swapAmounts[0];
-        amounts[2] = base;
-        amounts[3] = extra;
+        amounts[2] = usd2inr(base);
+        amounts[3] = usd2inr(extra);
         return amounts;
+    }
+
+    function inr2usd(uint256 inr) internal  view returns(uint256 usd)  {
+        return((SCALE * inr)/ inr_rate);
+    }
+
+    function usd2inr(uint256 usd) internal  view returns(uint256 inr)  {
+        return ((inr_rate * usd) / SCALE);
     }
 
     
@@ -172,7 +180,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     // internal 
     function _profit(uint256 amount, uint256 tokenId) internal virtual view returns(uint256 base, uint256 extra) {
         Investment storage investment = investments[tokenId];
-        base = investedInr[tokenId] * SCALE / inr_rate;
+        base = inr2usd(investedInr[tokenId]);
         if (amount > base) {
             uint48 time_range = _daysFrom(investment.start);
             uint256 profit = amount - base;
