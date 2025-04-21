@@ -153,7 +153,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         amounts[0] = swapAmounts[1];
         amounts[1] = swapAmounts[0];
         amounts[2] = base;
-        amounts[4] = extra;
+        amounts[3] = extra;
         return amounts;
     }
 
