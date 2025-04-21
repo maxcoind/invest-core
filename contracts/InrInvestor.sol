@@ -119,7 +119,8 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         console.log("Before close trade");
         (uint256 amountA, uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
         dev_balance +=  (dev_fee * amountA) / SCALE;
-        uint256 total = _profit(amountA, tokenId);
+        (uint256 base, uint256 extra ) = _profit(amountA, tokenId);
+        uint256 total = base + extra;
 
         if (amountA > total) {
             uint256 profit = amountA - total;
@@ -131,14 +132,15 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
             }
         }
         totalPaidA += total;
-        IERC20(tokenA).safeTransfer(to, total);
+        IERC20(tokenA).safeTransfer(to, base);
+        if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }
          _update(address(0), tokenId, _msgSender()); // Burn, It checks authentication
          emit Close(tokenId, to,  amountA, amountB, total, inr_rate);
         return total;
     }
 
 
-    // returns AmountA, AmountB, totalA
+    // returns AmountA, AmountB, baseA, extraA
     function viewPendingProfit(uint256 tokenId) public view returns(uint[] memory amounts) {
         assert(_ownerOf(tokenId) != address(0));
         address[] memory path = new address[](2);
@@ -146,11 +148,12 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         path[1] = tokenA;
         Investment storage inv = investments[tokenId];
         uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
-        uint256 total = _profit(swapAmounts[1], tokenId);
-        amounts = new uint256[](3);
+        (uint256 base, uint256 extra)  = _profit(swapAmounts[1], tokenId);
+        amounts = new uint256[](4);
         amounts[0] = swapAmounts[1];
         amounts[1] = swapAmounts[0];
-        amounts[2]=total;
+        amounts[2] = base;
+        amounts[4] = extra;
         return amounts;
     }
 
@@ -167,19 +170,19 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
 
     // internal 
-    function _profit(uint256 amount, uint256 tokenId) internal override view returns(uint256 total) {
+    function _profit(uint256 amount, uint256 tokenId) internal virtual view returns(uint256 base, uint256 extra) {
         Investment storage investment = investments[tokenId];
-        total = investedInr[tokenId] * SCALE / inr_rate;
-        if (amount > total) {
+        base = investedInr[tokenId] * SCALE / inr_rate;
+        if (amount > base) {
             uint48 time_range = _daysFrom(investment.start);
-            uint256 profit = amount - total;
+            uint256 profit = amount - base;
             if (time_range <= investment.max_profit/investment.profit_per_day ) {
-                total += profit * time_range * investment.profit_per_day/SCALE;
+                extra = profit * time_range * investment.profit_per_day/SCALE;
             } else {
-                total += profit * investment.max_profit/SCALE;
+                extra = profit * investment.max_profit/SCALE;
             }
         }
-        return total;
+        return (base, extra);
     }
 
 

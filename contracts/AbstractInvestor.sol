@@ -124,20 +124,6 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
         return amounts;
     }
 
-    function _profit(uint256 amount, uint256 tokenId) internal view virtual returns(uint256 total) {
-        Investment storage investment = investments[tokenId];
-        total = investment.investmentA;
-        if (amount > total) {
-            uint48 time_range = _daysFrom(investment.start);
-            uint256 profit = amount - investment.investmentA;
-            if (time_range <= investment.max_profit/investment.profit_per_day ) {
-                total += profit * time_range * investment.profit_per_day/SCALE;
-            } else {
-                total += profit * investment.max_profit/SCALE;
-            }
-        }
-        return total;
-    }
 
     // return full days from some start point
     // start - start time in seconds

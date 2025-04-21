@@ -77,6 +77,23 @@ contract Investor is AbstractInvestor, ReentrancyGuard {
         return amounts;
     }
 
+    // internal
+    
+    function _profit(uint256 amount, uint256 tokenId) internal view virtual returns(uint256 total) {
+        Investment storage investment = investments[tokenId];
+        total = investment.investmentA;
+        if (amount > total) {
+            uint48 time_range = _daysFrom(investment.start);
+            uint256 profit = amount - investment.investmentA;
+            if (time_range <= investment.max_profit/investment.profit_per_day ) {
+                total += profit * time_range * investment.profit_per_day/SCALE;
+            } else {
+                total += profit * investment.max_profit/SCALE;
+            }
+        }
+        return total;
+    }
+
 
     // Add some extra protections
     function withdrawStuckETH(address payable _addressTo, uint256 _amount) onlyRole(DEFAULT_ADMIN_ROLE) public returns(uint256){
