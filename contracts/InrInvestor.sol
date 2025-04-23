@@ -42,6 +42,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
     uint256 public dev_fee ;
     uint256 public dev_balance;
+    uint256 public balanceB;
     uint256 public inr_rate; // rate = SCALE * INR / TokenA
     mapping(uint256 _tokenId => uint256 _inr) investedInr;
     mapping(bytes32 => bool) exists;
@@ -102,12 +103,12 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         require(!exists[_hash], "hash exists");
         uint256 amountA = inr2usd(inr);
         exists[_hash] = true;
-        dev_balance +=  (dev_fee * amountA) / SCALE;
         uint256 tokenId = _mint(to);
         hash2tokenId[_hash] = tokenId;
         investedInr[tokenId] = inr;
-        console.log("Open trade, Amount A:", amountA);
         amounts = _openTrade(tokenId, amountA, amountBOutMin, deadline);
+        dev_balance +=  (dev_fee * amounts[1]) / SCALE;
+        balanceB += amounts[1]; 
         totalInvestmentA += amounts[0];
         _initalInvestment(tokenId, amounts[0], amounts[1], default_profit_max, default_profit_per_day);
         emit Open(to, amounts[0], amounts[1], inr, _hash);
@@ -116,9 +117,8 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
     function closeTrade(uint256 tokenId, address to, uint256 amountOutMin, uint deadline) onlyRole(TRADER_ROLE) nonReentrant external returns(uint256) {
         require(hasRole(EXCHANGER_ROLE, to), "Reciever is not exchanger");
-        console.log("Before close trade");
         (uint256 amountA, uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
-        dev_balance +=  (dev_fee * amountA) / SCALE;
+        balanceB -= amountB;
         (uint256 base, uint256 extra ) = _profit(amountA, tokenId);
         uint256 total = base + extra;
 
@@ -167,7 +167,9 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
     
     function withdrawDevFee(address to) public onlyRole(DEV_ROLE) {
-        IERC20(tokenA).safeTransfer(to, dev_balance);
+        uint256 balance = IERC20(tokenB).balanceOf(address(this));
+        require(balance > (balanceB + dev_balance), "Not enought balance for dev fee");
+        IERC20(tokenB).safeTransfer(to, dev_balance);
         dev_balance = 0;
     }
 
