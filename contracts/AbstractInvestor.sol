@@ -10,7 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import {IUniswapV2Factory} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
-import "hardhat/console.sol";
+
 
 
 struct Investment {
@@ -129,7 +129,7 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
     // start - start time in seconds
     function _daysFrom(uint48 start) internal view returns(uint48) {
         require(clock() >= start, "invalid time range");
-        return( (clock() - start) / 1 days);
+        return( (clock() - start) / 1 minutes);
     }
 
     // service functions

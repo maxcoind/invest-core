@@ -12,7 +12,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 
-import "hardhat/console.sol";
 
 
 event Open(address to, uint256 amountA, uint256 amountB, uint256 inr, bytes32 hash);
@@ -21,13 +20,14 @@ event DevFee(uint256 fee);
 event Profit(uint256 max, uint256 per_day);
 event WithdrawProfit(address to, uint256 amount);
 event Accountant(address accountant);
-// ToDo: Profit in INR
-// ToDo: [x] INR exchange rate
-// ToDo: [x] Add Exchanger group
-// ToDo: [x] Allow withdraw only to exchanger
-// ToDo: [x] Add manager to autoapproval of account
 
 event InrRateUpdated(uint256 newRate);
+
+struct CloseingInfo {
+    uint256 amountA;
+    uint256 amountB;
+    uint256 amountInr;
+}
 
 contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -45,6 +45,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     uint256 public balanceB;
     uint256 public inr_rate; // rate = SCALE * INR / TokenA
     mapping(uint256 _tokenId => uint256 _inr) investedInr;
+    mapping(uint256 _tokenId => CloseingInfo) closedInfo;
     mapping(bytes32 => bool) exists;
     mapping(bytes32 => uint256) hash2tokenId;
 
@@ -136,6 +137,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }
          _update(address(0), tokenId, _msgSender()); // Burn, It checks authentication
          emit Close(tokenId, to,  amountA, amountB, total, inr_rate);
+         closedInfo[tokenId] = CloseingInfo(amountA, amountB, total);
         return total;
     }
 
