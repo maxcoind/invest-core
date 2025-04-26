@@ -129,7 +129,7 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
     // start - start time in seconds
     function _daysFrom(uint48 start) internal view returns(uint48) {
         require(clock() >= start, "invalid time range");
-        return( (clock() - start) / 1 minutes);
+        return( (clock() - start) / 1 seconds);
     }
 
     // service functions

@@ -46,8 +46,8 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     uint256 public inr_rate; // rate = SCALE * INR / TokenA
     mapping(uint256 _tokenId => uint256 _inr) investedInr;
     mapping(uint256 _tokenId => CloseingInfo) closedInfo;
-    mapping(bytes32 => bool) exists;
-    mapping(bytes32 => uint256) hash2tokenId;
+    mapping(bytes32 => bool) public exists;
+    mapping(bytes32 => uint256) public hash2tokenId;
 
     // Counters
     uint256 totalInvestmentA; //How much it was invested total
@@ -60,7 +60,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         _grantRole(MANAGER_ROLE, _msgSender());
         _grantRole(ACCOUNTER_ROLE, _msgSender());
         dev_fee = 1;
-        inr_rate = 20000; // 1 to 1
+        inr_rate = 20000; 
         accountant = _accountant;
         _updateDefaultProfitRate(8000, 5);
     }
@@ -92,15 +92,21 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     }
 
     function withdrawTokenA(address to, uint256 amount) public onlyRole(ACCOUNTER_ROLE) {
-        uint256 balance = IERC20(tokenA).balanceOf(address(this));
-        require(amount <= (balance - dev_balance), "Not enough money"); 
         IERC20(tokenA).safeTransfer(to, amount);
+        emit WithdrawProfit(to, amount);
+    }
+
+
+    function withdrawTokenB(address to, uint256 amount) public onlyRole(ACCOUNTER_ROLE) {
+        uint256 balance = IERC20(tokenB).balanceOf(address(this));
+        require(amount <= (balance - dev_balance), "Not enough money"); 
+        IERC20(tokenB).safeTransfer(to, amount);
         emit WithdrawProfit(to, amount);
     }
 
     
 
-    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) nonReentrant external payable returns(uint[] memory amounts) {
+    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) nonReentrant external returns (uint[] memory amounts) {
         require(!exists[_hash], "hash exists");
         uint256 amountA = inr2usd(inr);
         exists[_hash] = true;
@@ -170,7 +176,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     
     function withdrawDevFee(address to) public onlyRole(DEV_ROLE) {
         uint256 balance = IERC20(tokenB).balanceOf(address(this));
-        require(balance > (balanceB + dev_balance), "Not enought balance for dev fee");
+        require(balance >= (balanceB + dev_balance), "Not enought balance for dev fee");
         IERC20(tokenB).safeTransfer(to, dev_balance);
         dev_balance = 0;
     }
