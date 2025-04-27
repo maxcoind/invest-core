@@ -156,7 +156,8 @@ await invest.grantRole(await invest.TRADER_ROLE(), manager.address);
 console.log("Token A balance in InrInvest:", ethers.formatEther(await tokenA.balanceOf(investAddress)));
 
 await tokenA.connect(manager).approve(investAddress, MaxUint256);
-const invest_amount = ethers.parseEther("1");
+const invest_amount = ethers.parseEther("85");
+await invest.setInrRate(850_000n);
 // await invest.openTrade(user.address, ethers.formatEther("1"), 0, deadline, 0);
 // function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
 console.log("Open trade");
@@ -169,8 +170,6 @@ console.log("Token A balance of user:", ethers.formatEther(await tokenA.balanceO
 console.log("Token B balance of user:", ethers.formatEther(await tokenB.balanceOf(user.address)));
 console.log("Token A balance in InrInvest:", ethers.formatEther(await tokenA.balanceOf(investAddress)));
 console.log("Token B balance in InrInvest:", ethers.formatEther(await tokenB.balanceOf(investAddress)));
-
-
 
 // Pass one year
 ethers.provider.send("evm_increaseTime", [365 * 24 * 60 * 60]);

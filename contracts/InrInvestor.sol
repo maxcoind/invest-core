@@ -2,7 +2,6 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.22;
 
-
 import {AbstractInvestor, Investment} from "./AbstractInvestor.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -10,11 +9,6 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-
-import {console} from "hardhat/console.sol";
-
-
-
 
 event Open(address to, uint256 amountA, uint256 amountB, uint256 inr, bytes32 hash);
 event Close(uint256 tokenId, address to, uint256 amountA, uint256 amountB, uint256 total, uint256 inr_rate);
@@ -119,9 +113,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         uint256 tokenId = _mint(to);
         hash2tokenId[_hash] = tokenId;
         investedInr[tokenId] = inr;
-        console.log("Open trade");
         (amountA, amountB) = _openTrade(path, tokenId, amount, amountBOutMin, deadline);
-        console.log("Open trade end");
         dev_balance +=  (dev_fee * amountB) / SCALE;
         balanceB += amountB; 
         totalInvestmentA += amountA;
@@ -162,16 +154,17 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
 
 
     // returns AmountA, AmountB, baseA, extraA
-    function viewPendingProfit(uint256 tokenId) public view returns(uint[] memory amounts) {
+    //         address[] memory path = new address[](2);
+        // path[0] = tokenB;
+        // path[1] = tokenA;
+
+    function viewPendingProfit(uint256 tokenId, address[] memory path) public view returns(uint[] memory amounts) {
         assert(_ownerOf(tokenId) != address(0));
-        address[] memory path = new address[](2);
-        path[0] = tokenB;
-        path[1] = tokenA;
         Investment storage inv = investments[tokenId];
         uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(inv.amountB, path);
-        (uint256 base, uint256 extra)  = _profit(swapAmounts[1], tokenId);
+        (uint256 base, uint256 extra)  = _profit(swapAmounts[path.length - 1], tokenId);
         amounts = new uint256[](4);
-        amounts[0] = swapAmounts[1];
+        amounts[0] = swapAmounts[path.length - 1];
         amounts[1] = swapAmounts[0];
         amounts[2] = usd2inr(base);
         amounts[3] = usd2inr(extra);
