@@ -29,21 +29,32 @@ contract Investor is AbstractInvestor, ReentrancyGuard {
     /// @param amount Amount of tokenA to invest.
     /// @param amountBOutMin Minimum tokenB expected from the swap.
     /// @param deadline Uniswap swap deadline.
-    /// @return amounts Array containing [amountA, amountB].
-    function openTrade(uint256 amount, uint256 amountBOutMin, uint deadline) nonReentrant  external returns(uint[] memory amounts) {
+    /// @return amountA The amount of tokenA invested.
+    /// @return amountB The amount of tokenB received from the swap.
+    function openTrade(uint256 amount, uint256 amountBOutMin, uint deadline) nonReentrant  external returns(uint256 amountA, uint256 amountB) {
         address to = _msgSender();
         uint256 tokenId = _mint(to);
-        amounts = _openTrade(tokenId, amount, amountBOutMin, deadline);
-        _initalInvestment(tokenId, amounts[0], amounts[1], default_profit_max, default_profit_per_day);
-        totalInvestmentA += amounts[0];
-        emit Open(to, amounts[0], amounts[1]);
-        return amounts;
+
+        address[] memory path = new address[](2);
+        path[0] = tokenA;
+        path[1] = tokenB;
+
+        (amountA, amountB) = _openTrade(path, tokenId, amount, amountBOutMin, deadline);
+        _initalInvestment(tokenId, amountA, amountB, default_profit_max, default_profit_per_day);
+        totalInvestmentA += amountA;
+        emit Open(to, amountA, amountB);
+        return (amountA, amountB);
     }
 
     function closeTrade(uint256 tokenId, uint256 amountOutMin, uint deadline) nonReentrant  external returns(uint256) {
         address to = _ownerOf(tokenId);
         require(to != address(0), "Investor: Token not exists");
-        (uint256 amountA,uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
+
+        address[] memory path = new address[](2);
+        path[0] = tokenB;
+        path[1] = tokenA;
+
+        (uint256 amountA,uint256 amountB)  = _closeTrade(path, tokenId, amountOutMin, deadline);
 
         uint256 total = _profit(amountA, tokenId);
 

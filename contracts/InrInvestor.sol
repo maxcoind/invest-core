@@ -11,6 +11,8 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
+import {console} from "hardhat/console.sol";
+
 
 
 
@@ -60,7 +62,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         _grantRole(MANAGER_ROLE, _msgSender());
         _grantRole(ACCOUNTER_ROLE, _msgSender());
         dev_fee = 1;
-        inr_rate = 20000; 
+        inr_rate = 10000; 
         accountant = _accountant;
         _updateDefaultProfitRate(8000, 5);
     }
@@ -104,27 +106,38 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
         emit WithdrawProfit(to, amount);
     }
 
-    
 
-    function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) nonReentrant external returns (uint[] memory amounts) {
+    function openTrade(address[] calldata path,  address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) 
+            onlyRole(TRADER_ROLE) nonReentrant external returns (uint256 amountA, uint256 amountB) {
         require(!exists[_hash], "hash exists");
-        uint256 amountA = inr2usd(inr);
+
+        require(path[0] == tokenA, "Invalid path start");
+        require(path[path.length - 1] == tokenB, "Invalid path end");
+
+        uint256 amount = inr2usd(inr);
         exists[_hash] = true;
         uint256 tokenId = _mint(to);
         hash2tokenId[_hash] = tokenId;
         investedInr[tokenId] = inr;
-        amounts = _openTrade(tokenId, amountA, amountBOutMin, deadline);
-        dev_balance +=  (dev_fee * amounts[1]) / SCALE;
-        balanceB += amounts[1]; 
-        totalInvestmentA += amounts[0];
-        _initalInvestment(tokenId, amounts[0], amounts[1], default_profit_max, default_profit_per_day);
-        emit Open(to, amounts[0], amounts[1], inr, _hash);
-        return amounts;
+        console.log("Open trade");
+        (amountA, amountB) = _openTrade(path, tokenId, amount, amountBOutMin, deadline);
+        console.log("Open trade end");
+        dev_balance +=  (dev_fee * amountB) / SCALE;
+        balanceB += amountB; 
+        totalInvestmentA += amountA;
+        _initalInvestment(tokenId, amountA, amountB, default_profit_max, default_profit_per_day);
+        emit Open(to, amountA, amountB, inr, _hash);
+        return (amountA, amountB);
     }
 
-    function closeTrade(uint256 tokenId, address to, uint256 amountOutMin, uint deadline) onlyRole(TRADER_ROLE) nonReentrant external returns(uint256) {
+    function closeTrade(address[] calldata path, uint256 tokenId, address to, uint256 amountOutMin, uint deadline) onlyRole(TRADER_ROLE) nonReentrant external returns(uint256) {
         require(hasRole(EXCHANGER_ROLE, to), "Reciever is not exchanger");
-        (uint256 amountA, uint256 amountB)  = _closeTrade(tokenId, amountOutMin, deadline);
+
+        require(path[0] == tokenB, "Invalid path start");
+        require(path[path.length - 1] == tokenA, "Invalid path end");
+
+
+        (uint256 amountA, uint256 amountB)  = _closeTrade(path, tokenId, amountOutMin, deadline);
         balanceB -= amountB;
         (uint256 base, uint256 extra ) = _profit(amountA, tokenId);
         uint256 total = base + extra;

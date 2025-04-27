@@ -17,8 +17,8 @@ struct Investment {
     uint48 start;
     uint256 investmentA; // Initial inventment amount
     uint256 amountB; // Balance of token B
-    uint256 max_profit; // 1%=100, when SCALE=1000
-    uint256 profit_per_day; // 0.05% = 5, when SCALE=1000
+    uint256 max_profit; // 1%=100, when SCALE=10000
+    uint256 profit_per_day; // 0.05% = 5, when SCALE=10000
 }
 
 
@@ -90,12 +90,9 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
     }
 
     // returns: amountA, amountB, total payed A 
-    function _closeTrade(uint256 tokenId, uint256 amountOutMin, uint deadline) internal returns(uint256 amountA,uint256 amountB) {
+    function _closeTrade(address[] memory path, uint256 tokenId, uint256 amountOutMin, uint deadline) internal returns(uint256 amountB,uint256 amountA) {
         Investment storage investment = investments[tokenId];
         uint256 amount = investment.amountB;
-        address[] memory path = new address[](2);
-        path[0] = tokenB;
-        path[1] = tokenA;
         uint256[] memory amounts = IUniswapV2Router02(uniswapV2Router02).swapExactTokensForTokens(
             amount,
             amountOutMin,
@@ -104,16 +101,13 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
             deadline
         );
         investment.amountB -= amounts[0];
-        return (amounts[1], amounts[0]);
+        return (amounts[amounts.length - 1], amounts[0]);
     }
 
 
-    function _openTrade(uint256 tokenId, uint256 amount, uint256 amountOutMin, uint deadline) internal returns(uint[] memory amounts) {
-                address[] memory path = new address[](2);
+    function _openTrade(address[] memory path, uint256 tokenId, uint256 amount, uint256 amountOutMin, uint deadline) internal returns(uint256 amountA,uint256 amountB) {
         IERC20(tokenA).safeTransferFrom(_msgSender(),address(this),amount);
-        path[0] = tokenA;
-        path[1] = tokenB;
-        amounts = IUniswapV2Router02(uniswapV2Router02).swapExactTokensForTokens(
+        uint256[] memory amounts = IUniswapV2Router02(uniswapV2Router02).swapExactTokensForTokens(
             amount,
             amountOutMin,
             path,
@@ -121,7 +115,7 @@ abstract contract AbstractInvestor is ERC721, ERC721Enumerable, ERC721Pausable, 
             deadline
         );
         investments[tokenId].amountB += amounts[1];
-        return amounts;
+        return (amounts[0], amounts[amounts.length - 1] );
     }
 
 
