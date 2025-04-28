@@ -25,6 +25,8 @@ struct CloseingInfo {
     uint256 amountInr;
 }
 
+
+
 contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     using SafeERC20 for IERC20;
  
@@ -51,6 +53,8 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     uint256 public totalProfitA; // How much it was made in total
     uint256 public totalDeficiteA;
 
+    
+
     constructor (address _tokenA, address _tokenB, address _V2router, address _accountant) AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {
         _grantRole(TRADER_ROLE, _msgSender());
         _grantRole(MANAGER_ROLE, _msgSender());
@@ -68,7 +72,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     }
 
 
-    function (uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
+    function setInrRate(uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
         require(rate > 0 && rate < 1e18, "Invalid INR rate");
         inr_rate = rate;
         emit InrRateUpdated(rate);
