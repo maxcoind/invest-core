@@ -40,16 +40,16 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     uint256 public dev_balance;
     uint256 public balanceB;
     uint256 public inr_rate; // rate = SCALE * INR / TokenA
-    mapping(uint256 _tokenId => uint256 _inr) investedInr;
-    mapping(uint256 _tokenId => CloseingInfo) closedInfo;
+    mapping(uint256 _tokenId => uint256 _inr) public investedInr;
+    mapping(uint256 _tokenId => CloseingInfo) public closedInfo;
     mapping(bytes32 => bool) public exists;
     mapping(bytes32 => uint256) public hash2tokenId;
 
     // Counters
-    uint256 totalInvestmentA; //How much it was invested total
-    uint256 totalPaidA; // How much it was paid in total
-    uint256 totalProfitA; // How much it was made in total
-    uint256 totalDeficiteA;
+    uint256 public totalInvestmentA; //How much it was invested total
+    uint256 public totalPaidA; // How much it was paid in total
+    uint256 public totalProfitA; // How much it was made in total
+    uint256 public totalDeficiteA;
 
     constructor (address _tokenA, address _tokenB, address _V2router, address _accountant) AbstractInvestor( _msgSender(),  _tokenA,  _tokenB,  _V2router) {
         _grantRole(TRADER_ROLE, _msgSender());
@@ -68,7 +68,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
     }
 
 
-    function setInrRate(uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
+    function (uint256 rate) public onlyRole(ACCOUNTER_ROLE) {
         require(rate > 0 && rate < 1e18, "Invalid INR rate");
         inr_rate = rate;
         emit InrRateUpdated(rate);
@@ -143,6 +143,7 @@ contract InrInvestor is AbstractInvestor, ReentrancyGuard {
                 totalDeficiteA += total - amountA;
             }
         }
+        require(total > IERC20(tokenA).balanceOf(address(this)), "Not enough balance");
         totalPaidA += total;
         IERC20(tokenA).safeTransfer(to, base);
         if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }

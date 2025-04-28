@@ -160,12 +160,15 @@ const invest_amount = ethers.parseEther("85");
 await invest.setInrRate(850_000n);
 // await invest.openTrade(user.address, ethers.formatEther("1"), 0, deadline, 0);
 // function openTrade(address to, uint256 inr, uint256 amountBOutMin, uint deadline, bytes32 _hash) onlyRole(TRADER_ROLE) external payable returns(uint[] memory amounts) {
+console.log("Token A balance in Manager:", ethers.formatEther(await tokenA.balanceOf(manager.address)));
 console.log("Open trade");
 const exchangePath = [await tokenA.getAddress(), await tokenC.getAddress(), await tokenB.getAddress()];
 console.log("Open Path",exchangePath );
 await invest.connect(manager).openTrade(exchangePath, user.address, invest_amount, 0, deadline, "0x7465737400000000000000000000000000000000000000000000000000000000");
 
 console.log("Trade opened");
+console.log("Token A balance in Manager:", ethers.formatEther(await tokenA.balanceOf(manager.address)));
+
 console.log("Token A balance of user:", ethers.formatEther(await tokenA.balanceOf(user.address)));
 console.log("Token B balance of user:", ethers.formatEther(await tokenB.balanceOf(user.address)));
 console.log("Token A balance in InrInvest:", ethers.formatEther(await tokenA.balanceOf(investAddress)));
