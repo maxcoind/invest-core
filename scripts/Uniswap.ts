@@ -18,7 +18,7 @@ async function deployWETH9(): Promise<IERC20> {
 }
 
 export async function deployUniswapWithPairs() {
-    const [deployer, manager, ] = await ethers.getSigners();
+    const [deployer, manager] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
     console.log("Deployer balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
 
@@ -72,7 +72,7 @@ export async function deployUniswapWithPairs() {
       
         console.log("===> Adding liquidity to the pool TokenA -> TokenC ");
       
-        const deadline = Math.floor(Date.now() / 1000) + 10 * 60;
+        const deadline = Math.floor(Date.now() / 1000) + 10 * 60 * 60 * 24 * 365 * 2 ;
         const addLiquidityTx = await uniswapV2.v2_router
           .addLiquidity(
             await tokenA.getAddress(),

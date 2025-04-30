@@ -11,10 +11,13 @@ import { token } from "../typechain-types/@openzeppelin/contracts";
 
 
 async function main() {
+  console.log("Start Deploying BaseInvest...");
   const [deployer, manager, user] = await ethers.getSigners();
 
   //prepare uniswap pairs
   const uniswap = await deployUniswapWithPairs();
+  console.log("Uniswap router to:", await uniswap.v2_router.getAddress());
+  console.log("End deploying uniswap pairs");
 
   // deploy with transparent proxy
   const BaseInvestFactory = await ethers.getContractFactory("BaseInvest");
@@ -27,8 +30,18 @@ async function main() {
     TransparentUpgradeableProxy.abi, TransparentUpgradeableProxy.bytecode,
     deployer
   ));
-  const proxy = await proxy_factory.deploy(await baseInvest.getAddress(), deployer.address,"0x");
-  const deployTransaction = await proxy.waitForDeployment();
+
+  const initializeData = baseInvest.interface.encodeFunctionData("initialize", [deployer.address]);
+  
+  const proxy = await proxy_factory.deploy(await baseInvest.getAddress(), deployer.address,initializeData);
+  
+  const adminChangedEventFilter = proxy.filters.AdminChanged();
+  await proxy.waitForDeployment();
+
+  const adminChangedEvents = await proxy.queryFilter(adminChangedEventFilter);
+  const adminProxyAddress = adminChangedEvents[0].args[1];
+
+  console.log("Proxy Admin:", adminProxyAddress);
   const baseInvestProxy = new Contract(
     await proxy.getAddress(),
     BaseInvestFactory.interface,
@@ -36,10 +49,8 @@ async function main() {
   );
   console.log("BaseInvest proxy deployed to:", await proxy.getAddress());
   console.log("BaseInvest tokenA address:", await baseInvestProxy.tokenA());
-  console.log("BaseInvest initialize");
-  await baseInvestProxy.initialize(deployer.address);
-
-
+  // console.log("BaseInvest initialize");
+  // await baseInvestProxy.initialize(deployer.address);
 
   await baseInvestProxy.grantRole(await baseInvestProxy.MANAGER_ROLE(), deployer.address);
   // await invest.grantRole(await invest.MANAGER_ROLE(), manager.address);
@@ -72,12 +83,7 @@ async function main() {
 
   await baseInvestProxy.closeTrade(tokenId, closeTradePath, deployer.address, 0, Math.floor(Date.now() / 1000) + 10 * 60 + 365 * 24 * 60 * 60); // plus 1 year from today
   console.log("Trade closed");
-  
-
   await baseInvestProxy.burn(tokenId);
-
-  
-
 }
 
 main()

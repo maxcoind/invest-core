@@ -6,3 +6,4 @@ test = 'test'
 cache_path  = 'cache_forge'
 optimizer = true
 optimizer_runs = 20_000
+auto_detect_solc = true

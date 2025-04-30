@@ -15,7 +15,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import {IUniswapV2Factory} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
-import {console} from "hardhat/console.sol";
+// import {console} from "hardhat/console.sol";
 
 struct TradePosition {
     
@@ -74,8 +74,8 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         // Counters
         uint256 totalInvestmentA; //How much it was invested total
         uint256 totalPaidA; // How much it was paid in total
-        uint256 totalProfitA; // How much it was made in total
-        uint256 totalDeficiteA;
+        uint256 systemProfitA; // How much it was made in total
+        uint256 systemDeficiteA;
         uint256 totalBalanceB;
     }
 
@@ -123,18 +123,21 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
 
         IERC20(tokenA).approve(uniswapV2Router02, type(uint256).max);
         IERC20(tokenB).approve(uniswapV2Router02, type(uint256).max);
-
-        
     }
 
     function __BaseInvest_init_unchained() internal onlyInitializing {
     }
 
     // getters
-    funcction getPosition(uint256 tokenId) public view returns (TradePosition memory) {
+    function getPosition(uint256 tokenId) public view returns (TradePosition memory) {
         _requireOwned(tokenId);
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         return $.investments[tokenId];
+    }
+
+    function getSystemStats() public view returns (uint256 totalInvestmentA, uint256 totalPaidA, uint256 systemProfitA, uint256 systemDeficiteA, uint256 totalBalanceB) {
+        BaseInvestStorage storage $ = _getBaseInvestStorage();
+        return ($.totalInvestmentA, $.totalPaidA, $.systemProfitA, $.systemDeficiteA, $.totalBalanceB);
     }
 
     // setters
@@ -231,6 +234,9 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         require(path[path.length - 1] == tokenA, "Invalid path end");
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         TradePosition storage investment = $.investments[tokenId];
+        require(investment.end == 0, "Trade already closed");
+        require(investment.amountB > 0, "No balance to sell");
+        investment.end = clock();
         uint256[] memory amounts = IUniswapV2Router02(uniswapV2Router02).swapExactTokensForTokens(
             investment.amountB,
             amountAOutMin,
@@ -241,20 +247,21 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         uint256 amountA = amounts[amounts.length - 1];
         uint256 amountB = amounts[0];
         investment.soldB = amountB;
-        investment.end = clock();
         $.totalBalanceB -= amountB;
         (uint256 base, uint256 extra ) = _profit(amountA, tokenId);
         uint256 total = base + extra;
+        require(total <= IERC20(tokenA).balanceOf(address(this)), "Not enough balance");
         if (amountA > total) {
             uint256 profit = amountA - total;
-            $.totalProfitA += profit;
+            $.systemProfitA += profit;
             IERC20(tokenA).safeTransfer($.accountant, profit);
         } else { 
             if (amountA <  total) {
-                $.totalDeficiteA += total - amountA;
+                $.systemDeficiteA += total - amountA;
             }
         }
-        require(total <= IERC20(tokenA).balanceOf(address(this)), "Not enough balance");
+        investment.paidA += total;
+        investment.paidInr += tokenA2inr(total);
         $.totalPaidA += total;
         IERC20(tokenA).safeTransfer(to, base);
         if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }
@@ -263,18 +270,14 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
     }
 
 
-    function viewPendingProfit(uint256 tokenId, address[] memory path) public view returns(uint[] memory amounts) {
+    function viewPendingProfit(uint256 tokenId, address[] memory path) public view 
+        returns(uint256 base, uint256 extra, uint256[] memory amounts) {
         _requireOwned(tokenId);
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         TradePosition storage investment = $.investments[tokenId];
-        uint256[] memory swapAmounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(investment.amountB, path);
-        (uint256 base, uint256 extra)  = _profit(swapAmounts[path.length - 1], tokenId);
-        amounts = new uint256[](4);
-        amounts[0] = swapAmounts[path.length - 1];
-        amounts[1] = swapAmounts[0];
-        amounts[2] = tokenA2inr(base);
-        amounts[3] = tokenA2inr(extra);
-        return amounts;
+        amounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(investment.amountB, path);
+        (base, extra)  = _profit(amounts[path.length - 1], tokenId);
+        return(base, extra, amounts);
     }
 
     function withdrawDeveveloperFee(address to) public onlyRole(DEV_ROLE) {
