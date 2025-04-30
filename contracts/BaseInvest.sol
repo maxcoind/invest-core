@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.29;
+pragma solidity ^0.8.28;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -140,6 +140,16 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         return ($.totalInvestmentA, $.totalPaidA, $.systemProfitA, $.systemDeficiteA, $.totalBalanceB);
     }
 
+    // get settings 
+    function getSettings() public view returns (address accountant, uint256 developerFee, uint256 developerBalance, uint256 defaultMaximumProfit, uint256 defaultProfitPerDay) {
+        BaseInvestStorage storage $ = _getBaseInvestStorage();
+        return ($.accountant, $.developerFee, $.developerBalance, $.defaultMaximumProfit, $.defaultProfitPerDay);
+    }
+
+    function getInrRate() public view returns (uint256 inrRate) {
+        BaseInvestStorage storage $ = _getBaseInvestStorage();
+        return $.inrRate;
+    }
     // setters
 
     function setAccountant(address _accountant) public onlyRole(DEFAULT_ADMIN_ROLE) {
