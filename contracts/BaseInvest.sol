@@ -285,6 +285,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         _requireOwned(tokenId);
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         TradePosition storage investment = $.investments[tokenId];
+        require(investment.end == 0, "Trade already closed");
         amounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(investment.amountB, path);
         (base, extra)  = _profit(amounts[path.length - 1], tokenId);
         return(base, extra, amounts);
