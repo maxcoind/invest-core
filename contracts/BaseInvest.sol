@@ -59,6 +59,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant ACCOUNTER_ROLE = keccak256("ACCOUNTER_ROLE");
     bytes32 public constant EXCHANGER_ROLE = keccak256("EXCHANGER_ROLE");
+    bytes32 public constant STAKER_ROLE = keccak256("STAKER_ROLE");
 
 
 
@@ -362,6 +363,20 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         return "mode=timestamp";
     }
 
+
+    function stakeTokenB(uint256 amount) public onlyRole(STAKER_ROLE) {
+        BaseInvestStorage storage $ = _getBaseInvestStorage();
+        require(amount <= $.totalBalanceB, "Not enough balance");
+        $.totalBalanceB -= amount;
+        IERC20(tokenB).safeTransfer(_msgSender(), amount);
+    }
+
+    function unstakeTokenB(uint256 amount) public onlyRole(STAKER_ROLE) {
+        BaseInvestStorage storage $ = _getBaseInvestStorage();
+        require(amount <= IERC20(tokenB).balanceOf(_msgSender()), "Not enough balance");
+        $.totalBalanceB += amount;
+        IERC20(tokenB).safeTransferFrom(_msgSender(), address(this), amount);
+    }
 
     // Add some extra protections functions
 
