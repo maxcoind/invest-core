@@ -30,7 +30,7 @@ struct TradePosition {
     uint48 end; // End time
     uint256 soldB; // How much it was sold in token B
     uint256 paidA; // How much it was paid in token A
-    uint256 paidInr; // How much it was paid in inr
+    uint256 inrCloseRate; // rate of inr, at time of closing
     uint256 recievedA; // How much it was received in token A
     uint256 trader_profit; // profit in %
 
@@ -231,7 +231,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             profit_per_day: $.defaultProfitPerDay,
             paidA: 0,
             soldB: 0,
-            paidInr: 0,
+            inrCloseRate: 0,
             recievedA: 0,
             trader_profit: 0
         });
@@ -279,11 +279,11 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         }
         investment.trader_profit = trader_profit;
         investment.paidA += total;
-        investment.paidInr += tokenA2inr(total);
+        investment.inrCloseRate = $.inrRate;
         $.totalPaidA += total;
         IERC20(tokenA).safeTransfer(to, base);
         if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }
-         emit CloseTradePosition(tokenId, to,  investment.recievedA, investment.soldB, total, tokenA2inr(total));
+         emit CloseTradePosition(tokenId, to,  investment.recievedA, investment.soldB, total, $.inrRate);
         return total;
     }
 
