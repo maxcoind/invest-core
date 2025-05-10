@@ -32,6 +32,7 @@ struct TradePosition {
     uint256 paidA; // How much it was paid in token A
     uint256 paidInr; // How much it was paid in inr
     uint256 recievedA; // How much it was received in token A
+    uint256 trader_profit; // profit in %
 
 }
 
@@ -116,7 +117,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
         $.accountant = _accountant;
         $.developerFee = 5;
 
-        $.defaultMaximumProfit = 8000; // 0.8% = 8000, when SCALE=10000
+        $.defaultMaximumProfit = 8000; // 80% = 8000, when SCALE=10000
         $.defaultProfitPerDay = 5; // 0.5% = 5, when SCALE=10000
         emit ProfitRate($.defaultMaximumProfit, $.defaultProfitPerDay);
 
@@ -231,7 +232,8 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             paidA: 0,
             soldB: 0,
             paidInr: 0,
-            recievedA: 0
+            recievedA: 0,
+            trader_profit: 0
         });
         $.developerBalance +=  ($.developerFee * amountB) / SCALE;
         $.totalBalanceB += amountB; 
@@ -257,42 +259,44 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             address(this),
             deadline
         );
-        uint256 amountA = amounts[amounts.length - 1];
-        investment.recievedA = amountA;
-        uint256 amountB = amounts[0];
-        investment.soldB = amountB;
-        $.totalBalanceB -= amountB;
-        (uint256 base, uint256 extra ) = _profit(amountA, tokenId);
+        investment.recievedA = amounts[amounts.length - 1];
+        (uint256 base, uint256 extra, uint256 trader_profit) = _profit(investment.recievedA, tokenId);
+         
+    
+        investment.soldB = amounts[0];
+        $.totalBalanceB -= investment.soldB;
+        
         uint256 total = base + extra;
         require(total <= IERC20(tokenA).balanceOf(address(this)), "Not enough balance");
-        if (amountA > total) {
-            uint256 profit = amountA - total;
+        if (investment.recievedA > total) {
+            uint256 profit = investment.recievedA - total;
             $.systemProfitA += profit;
             IERC20(tokenA).safeTransfer($.accountant, profit);
         } else { 
-            if (amountA <  total) {
-                $.systemDeficiteA += total - amountA;
+            if (investment.recievedA <  total) {
+                $.systemDeficiteA += total - investment.recievedA;
             }
         }
+        investment.trader_profit = trader_profit;
         investment.paidA += total;
         investment.paidInr += tokenA2inr(total);
         $.totalPaidA += total;
         IERC20(tokenA).safeTransfer(to, base);
         if (extra > 0) { IERC20(tokenA).safeTransfer(to, extra); }
-         emit CloseTradePosition(tokenId, to,  amountA, amountB, total, tokenA2inr(total));
+         emit CloseTradePosition(tokenId, to,  investment.recievedA, investment.soldB, total, tokenA2inr(total));
         return total;
     }
 
 
     function viewPendingProfit(uint256 tokenId, address[] memory path) public view 
-        returns(uint256 base, uint256 extra, uint256[] memory amounts) {
+        returns(uint256 base, uint256 extra, uint256[] memory amounts, uint256 trader_profit) {
         _requireOwned(tokenId);
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         TradePosition storage investment = $.investments[tokenId];
         require(investment.end == 0, "Trade already closed");
         amounts = IUniswapV2Router02(uniswapV2Router02).getAmountsOut(investment.amountB, path);
-        (base, extra)  = _profit(amounts[path.length - 1], tokenId);
-        return(base, extra, amounts);
+        (base, extra, trader_profit)  = _profit(amounts[path.length - 1], tokenId);
+        return(base, extra, amounts, trader_profit);
     }
 
     function withdrawDeveveloperFee(address to) public onlyRole(DEV_ROLE) {
@@ -318,7 +322,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
 
     // view functions
 
-    function _profit(uint256 amount, uint256 tokenId) internal virtual view returns(uint256 base, uint256 extra) {
+    function _profit(uint256 amount, uint256 tokenId) internal virtual view returns(uint256 base, uint256 extra, uint256 trader_profit) {
         BaseInvestStorage storage $ = _getBaseInvestStorage();
         TradePosition storage investment = $.investments[tokenId];
         base = inr2tokenA(investment.inr);
@@ -326,12 +330,13 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             uint48 time_range = daysFrom(investment.start);
             uint256 profit = amount - base;
             if (time_range <= investment.max_profit/investment.profit_per_day ) {
-                extra = profit * time_range * investment.profit_per_day/SCALE;
+                trader_profit = time_range * investment.profit_per_day;
             } else {
-                extra = profit * investment.max_profit/SCALE;
+                trader_profit = investment.max_profit;
             }
+            extra = profit * trader_profit /SCALE;
         }
-        return (base, extra);
+        return (base, extra, trader_profit);
     }
 
 
