@@ -31,6 +31,7 @@ struct TradePosition {
     uint256 soldB; // How much it was sold in token B
     uint256 paidA; // How much it was paid in token A
     uint256 paidInr; // How much it was paid in inr
+    uint256 recievedA; // How much it was received in token A
 
 }
 
@@ -228,7 +229,8 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             profit_per_day: $.defaultProfitPerDay,
             paidA: 0,
             soldB: 0,
-            paidInr: 0
+            paidInr: 0,
+            recievedA: 0
         });
         $.developerBalance +=  ($.developerFee * amountB) / SCALE;
         $.totalBalanceB += amountB; 
@@ -255,6 +257,7 @@ contract BaseInvest is Initializable, ERC721Upgradeable, ERC721EnumerableUpgrade
             deadline
         );
         uint256 amountA = amounts[amounts.length - 1];
+        investment.recievedA = amountA;
         uint256 amountB = amounts[0];
         investment.soldB = amountB;
         $.totalBalanceB -= amountB;
